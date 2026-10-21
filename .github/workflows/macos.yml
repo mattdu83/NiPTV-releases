@@ -1,5 +1,5 @@
 # Version Mac de NiPTV, a mettre dans le depot PUBLIC des versions (niptv.updateRepo,
-# NicolasLambard/NiPTV-releases) : sur un depot public, les Mac de GitHub sont gratuits.
+# mattdu83/NiPTV-releases pour l'instant) : sur un depot public, les Mac de GitHub sont gratuits.
 # Le code reste dans le depot prive ; ce workflow le recupere avec un jeton en lecture seule.
 #
 # A chaque Release publiee ici par tools/publier-version.ps1, il construit les .dmg
