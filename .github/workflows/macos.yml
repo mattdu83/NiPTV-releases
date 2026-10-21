@@ -39,13 +39,13 @@ jobs:
     runs-on: ${{ matrix.runner }}
     steps:
       - name: Code de NiPTV (depot prive)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: ${{ env.CODE_REPO }}
           ref: ${{ github.event.release.tag_name || inputs.ref }}
           token: ${{ secrets.CODE_TOKEN }}
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 17
@@ -82,7 +82,7 @@ jobs:
           cp composeApp/build/compose/binaries/main/dmg/*.dmg "dist/NiPTV-$VERSION-macOS-${{ matrix.arch }}.dmg"
           ls -la dist
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: NiPTV-macOS-${{ matrix.arch }}
           path: dist/*.dmg
@@ -91,5 +91,9 @@ jobs:
         if: github.event_name == 'release'
         env:
           GH_TOKEN: ${{ github.token }}
+          CODE_TOKEN: ${{ secrets.CODE_TOKEN }}
           TAG: ${{ github.event.release.tag_name }}
-        run: gh release upload "$TAG" dist/*.dmg -R "${{ github.repository }}" --clobber
+        run: |
+          gh release upload "$TAG" dist/*.dmg -R "${{ github.repository }}" --clobber
+          # The same files in the private code repo's Release, next to the APK and the zip.
+          GH_TOKEN="$CODE_TOKEN" gh release upload "$TAG" dist/*.dmg -R "$CODE_REPO" --clobber || echo "::warning::Release $TAG absente du depot du code : .dmg non copies."
