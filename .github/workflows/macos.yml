@@ -58,6 +58,10 @@ jobs:
           cp -R /tmp/vlc/VLC.app/Contents/MacOS/lib composeApp/resources/macos/vlc/
           cp -R /tmp/vlc/VLC.app/Contents/MacOS/plugins composeApp/resources/macos/vlc/
           hdiutil detach /tmp/vlc
+          # The plugins' index goes stale once the app is signed (the modules change): VLC would
+          # reject it and rescan its ~400 modules, with an error each, at every start. Without
+          # it, it simply scans them.
+          find composeApp/resources/macos/vlc/plugins -name 'plugins.dat' -delete
           ls composeApp/resources/macos/vlc/lib
 
       - name: Secret Premium
