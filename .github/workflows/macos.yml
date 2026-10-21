@@ -1,0 +1,95 @@
+# Version Mac de NiPTV, a mettre dans le depot PUBLIC des versions (niptv.updateRepo,
+# NicolasLambard/NiPTV-releases) : sur un depot public, les Mac de GitHub sont gratuits.
+# Le code reste dans le depot prive ; ce workflow le recupere avec un jeton en lecture seule.
+#
+# A chaque Release publiee ici par tools/publier-version.ps1, il construit les .dmg
+# (Apple Silicon et Intel) a partir du meme tag dans le depot du code, et les ajoute a la Release.
+#
+# Secrets de CE depot (Settings > Secrets and variables > Actions) :
+#   CODE_TOKEN            jeton GitHub fine-grained, "Contents: Read-only" sur NicolasLambard/NiPTV-FireTV
+#   NIPTV_LICENCE_SECRET  le niptv.licenceSecret de local.properties (sans lui, Premium serait offert)
+# "Run workflow" a la main construit les .dmg d'une version (ou de main) sans rien publier.
+name: Version Mac
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Tag ou branche du code a construire"
+        default: main
+
+permissions:
+  contents: write
+
+env:
+  CODE_REPO: NicolasLambard/NiPTV-FireTV
+
+jobs:
+  dmg:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            arch: arm64
+          - runner: macos-15-intel
+            arch: x64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Code de NiPTV (depot prive)
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.CODE_REPO }}
+          ref: ${{ github.event.release.tag_name || inputs.ref }}
+          token: ${{ secrets.CODE_TOKEN }}
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: libVLC (celui de VLC.app, inclus dans l'appli)
+        run: |
+          curl -fsSL -o vlc.dmg https://get.videolan.org/vlc/3.0.21/macosx/vlc-3.0.21-universal.dmg
+          hdiutil attach vlc.dmg -nobrowse -readonly -mountpoint /tmp/vlc
+          mkdir -p composeApp/resources/macos/vlc
+          cp -R /tmp/vlc/VLC.app/Contents/MacOS/lib composeApp/resources/macos/vlc/
+          cp -R /tmp/vlc/VLC.app/Contents/MacOS/plugins composeApp/resources/macos/vlc/
+          hdiutil detach /tmp/vlc
+          ls composeApp/resources/macos/vlc/lib
+
+      - name: Secret Premium
+        env:
+          LICENCE: ${{ secrets.NIPTV_LICENCE_SECRET }}
+        run: |
+          if [ -n "$LICENCE" ]; then
+            echo "niptv.licenceSecret=$LICENCE" > local.properties
+          elif [ "${{ github.event_name }}" = "release" ]; then
+            echo "::error::Secret NIPTV_LICENCE_SECRET absent : la version publiee offrirait Premium a tout le monde."
+            exit 1
+          else
+            echo "::warning::Sans NIPTV_LICENCE_SECRET : build d'essai, Premium debloque."
+          fi
+
+      - name: Construction du .dmg
+        run: |
+          chmod +x gradlew
+          ./gradlew :composeApp:packageDmg --console=plain -q
+          VERSION=$(grep '^niptv.version=' gradle.properties | cut -d= -f2 | tr -d '[:space:]')
+          mkdir -p dist
+          cp composeApp/build/compose/binaries/main/dmg/*.dmg "dist/NiPTV-$VERSION-macOS-${{ matrix.arch }}.dmg"
+          ls -la dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NiPTV-macOS-${{ matrix.arch }}
+          path: dist/*.dmg
+
+      - name: Ajout a la Release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$TAG" dist/*.dmg -R "${{ github.repository }}" --clobber
