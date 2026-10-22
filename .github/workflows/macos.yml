@@ -37,6 +37,7 @@ jobs:
           - runner: macos-15-intel
             arch: x64
     runs-on: ${{ matrix.runner }}
+    timeout-minutes: 40
     steps:
       - name: Code de NiPTV (depot prive)
         uses: actions/checkout@v5
@@ -52,7 +53,7 @@ jobs:
 
       - name: libVLC (celui de VLC.app, inclus dans l'appli)
         run: |
-          curl -fsSL -o vlc.dmg https://get.videolan.org/vlc/3.0.21/macosx/vlc-3.0.21-universal.dmg
+          curl -fsSL --retry 4 --retry-all-errors --connect-timeout 20 --max-time 300 -o vlc.dmg https://get.videolan.org/vlc/3.0.21/macosx/vlc-3.0.21-universal.dmg
           hdiutil attach vlc.dmg -nobrowse -readonly -mountpoint /tmp/vlc
           mkdir -p composeApp/resources/macos/vlc
           cp -R /tmp/vlc/VLC.app/Contents/MacOS/lib composeApp/resources/macos/vlc/
