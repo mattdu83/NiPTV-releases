@@ -1,0 +1,61 @@
+# Diagnostic sur un vrai Mac (gratuit ici) : lit une video avec NiPTV en mode test
+# (--test-video), enregistre l'image recue et le journal de libVLC. Rien n'est publie.
+name: Test Mac
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Tag ou branche du code"
+        default: main
+      url:
+        description: "Video a lire"
+        default: https://github.com/ietf-wg-cellar/matroska-test-files/raw/master/test_files/test5.mkv
+      subtitles:
+        description: "piste (sous-titres du fichier), ou vide"
+        default: piste
+
+env:
+  CODE_REPO: NicolasLambard/NiPTV-FireTV
+
+jobs:
+  test:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          repository: ${{ env.CODE_REPO }}
+          ref: ${{ inputs.ref }}
+          token: ${{ secrets.CODE_TOKEN }}
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: libVLC
+        run: |
+          curl -fsSL -o vlc.dmg https://get.videolan.org/vlc/3.0.21/macosx/vlc-3.0.21-universal.dmg
+          hdiutil attach vlc.dmg -nobrowse -readonly -mountpoint /tmp/vlc
+          mkdir -p composeApp/resources/macos/vlc
+          cp -R /tmp/vlc/VLC.app/Contents/MacOS/lib composeApp/resources/macos/vlc/
+          cp -R /tmp/vlc/VLC.app/Contents/MacOS/plugins composeApp/resources/macos/vlc/
+          hdiutil detach /tmp/vlc
+          find composeApp/resources/macos/vlc/plugins -name 'plugins.dat' -delete
+
+      - name: Construction
+        run: |
+          chmod +x gradlew
+          ./gradlew :composeApp:createDistributable --console=plain -q
+
+      - name: Lecture
+        run: |
+          mkdir -p out
+          APP=$(find composeApp/build/compose/binaries/main/app -maxdepth 1 -name '*.app' | head -1)
+          JAVA_TOOL_OPTIONS=-Dniptv.vlcverbose=1 "$APP/Contents/MacOS/NiPTV" --test-video "${{ inputs.url }}" "$PWD/out/image.png" ${{ inputs.subtitles }} > out/journal.txt 2>&1 || true
+          grep -v '^\[h264 @' out/journal.txt | grep -i -E 'sous-titres|image|spu|subtit|blend|freetype|text|font|error' | head -80
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: test-mac
+          path: out/
