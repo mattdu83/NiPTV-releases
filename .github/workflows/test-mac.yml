@@ -21,6 +21,7 @@ env:
 jobs:
   test:
     runs-on: macos-15
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
         with:
@@ -51,7 +52,8 @@ jobs:
       - name: Fichier d'essai ASS (si url = ass)
         if: inputs.url == 'ass'
         run: |
-          brew install ffmpeg >/dev/null
+          python3 -m pip install --quiet --break-system-packages imageio-ffmpeg
+          FFMPEG=$(python3 -c 'import imageio_ffmpeg; print(imageio_ffmpeg.get_ffmpeg_exe())')
           for f in Arial PoliceInexistanteXYZ; do
             cat > "$f.ass" <<ASS
           [Script Info]
@@ -69,7 +71,7 @@ jobs:
           ASS
             sed -i '' 's/^          //' "$f.ass"
           done
-          ffmpeg -loglevel error -f lavfi -i testsrc=size=1280x720:rate=25 -t 30 -i Arial.ass -i PoliceInexistanteXYZ.ass             -map 0 -map 1 -map 2 -c:v libx264 -c:s ass -metadata:s:s:0 language=eng -metadata:s:s:1 language=fre "$PWD/essai.mkv"
+          "$FFMPEG" -loglevel error -f lavfi -i testsrc=size=1280x720:rate=25 -t 30 -i Arial.ass -i PoliceInexistanteXYZ.ass             -map 0 -map 1 -map 2 -c:v libx264 -c:s ass -metadata:s:s:0 language=eng -metadata:s:s:1 language=fre "$PWD/essai.mkv"
           echo "VIDEO=file://$PWD/essai.mkv" >> $GITHUB_ENV
 
       - name: Lecture
