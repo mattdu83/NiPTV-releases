@@ -71,7 +71,7 @@ jobs:
           ASS
             sed -i '' 's/^          //' "$f.ass"
           done
-          "$FFMPEG" -loglevel error -f lavfi -i testsrc=size=1280x720:rate=25 -t 30 -i Arial.ass -i PoliceInexistanteXYZ.ass             -map 0 -map 1 -map 2 -c:v libx264 -c:s ass -metadata:s:s:0 language=eng -metadata:s:s:1 language=fre "$PWD/essai.mkv"
+          "$FFMPEG" -loglevel error -f lavfi -i testsrc=duration=30:size=1280x720:rate=25 -i Arial.ass -i PoliceInexistanteXYZ.ass             -map 0 -map 1 -map 2 -c:v libx264 -c:s ass -metadata:s:s:0 language=eng -metadata:s:s:1 language=fre "$PWD/essai.mkv"
           echo "VIDEO=file://$PWD/essai.mkv" >> $GITHUB_ENV
 
       - name: Lecture
