@@ -3,9 +3,10 @@
 #
 # Lance par tools/publier-version.ps1 (gh workflow run niptv.yml -f tag=vX.Y.Z) une fois le tag
 # cree dans le depot du code, avec les nouveautes dans sa Release. Il construit en parallele
-# l'APK (Android, Fire TV), le zip Windows et les deux .dmg (Mac Apple Silicon et Intel), puis
-# publie la Release ici avec tous les fichiers d'un coup : les applis ne voient jamais une
-# version a moitie publiee.
+# l'APK (Android, Fire TV), le zip Windows et les deux .dmg (Mac Apple Silicon et Intel), et
+# chaque fichier est publie des qu'il est pret : la Release parait avec l'APK, le zip et les
+# .dmg s'y ajoutent ensuite. Une appli ne voit une version qu'une fois le fichier de sa
+# plateforme dedans (Updates.kt).
 #
 # Secrets de CE depot (Settings > Secrets and variables > Actions) :
 #   CODE_TOKEN            jeton GitHub fine-grained, "Contents: Read-only" sur NicolasLambard/NiPTV-FireTV
@@ -73,6 +74,17 @@ jobs:
         with:
           name: NiPTV-android
           path: dist/*
+      - name: Release (publiee avec l'APK)
+        if: inputs.publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CODE_TOKEN: ${{ secrets.CODE_TOKEN }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          # The notes are the code repo's Release body, written by tools/publier-version.ps1.
+          GH_TOKEN="$CODE_TOKEN" gh release view "$TAG" -R "$CODE_REPO" --json body -q .body > notes.txt || echo "NiPTV ${TAG#v}" > notes.txt
+          gh release create "$TAG" dist/* -R "${{ github.repository }}" --title "NiPTV ${TAG#v}" --notes-file notes.txt --latest
+          GH_TOKEN="$CODE_TOKEN" gh release upload "$TAG" dist/* -R "$CODE_REPO" --clobber || echo "::warning::APK non copie dans la Release du depot du code (jeton en lecture seule)."
 
   windows:
     runs-on: windows-latest
@@ -112,6 +124,18 @@ jobs:
         with:
           name: NiPTV-windows
           path: dist/*
+      - name: Ajout a la Release
+        if: inputs.publish
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CODE_TOKEN: ${{ secrets.CODE_TOKEN }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          # The Release is created with the APK: wait for it (15 min at most).
+          for i in $(seq 1 90); do gh release view "$TAG" -R "${{ github.repository }}" > /dev/null 2>&1 && break; sleep 10; done
+          gh release upload "$TAG" dist/* -R "${{ github.repository }}" --clobber
+          GH_TOKEN="$CODE_TOKEN" gh release upload "$TAG" dist/* -R "$CODE_REPO" --clobber || echo "::warning::Fichiers non copies dans la Release du depot du code (jeton en lecture seule)."
 
   mac:
     strategy:
@@ -164,24 +188,15 @@ jobs:
         with:
           name: NiPTV-macOS-${{ matrix.arch }}
           path: dist/*.dmg
-
-  release:
-    needs: [android, windows, mac]
-    if: inputs.publish
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/download-artifact@v5
-        with:
-          path: dist
-          merge-multiple: true
-      - name: Release (ici, puis copie dans le depot du code)
+      - name: Ajout a la Release
+        if: inputs.publish
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           CODE_TOKEN: ${{ secrets.CODE_TOKEN }}
           TAG: ${{ inputs.tag }}
         run: |
-          ls -la dist
-          # The notes are the code repo's Release body, written by tools/publier-version.ps1.
-          GH_TOKEN="$CODE_TOKEN" gh release view "$TAG" -R "$CODE_REPO" --json body -q .body > notes.txt || echo "NiPTV ${TAG#v}" > notes.txt
-          gh release create "$TAG" dist/* -R "${{ github.repository }}" --title "NiPTV ${TAG#v}" --notes-file notes.txt --latest
+          # The Release is created with the APK: wait for it (15 min at most).
+          for i in $(seq 1 90); do gh release view "$TAG" -R "${{ github.repository }}" > /dev/null 2>&1 && break; sleep 10; done
+          gh release upload "$TAG" dist/* -R "${{ github.repository }}" --clobber
           GH_TOKEN="$CODE_TOKEN" gh release upload "$TAG" dist/* -R "$CODE_REPO" --clobber || echo "::warning::Fichiers non copies dans la Release du depot du code (jeton en lecture seule)."
