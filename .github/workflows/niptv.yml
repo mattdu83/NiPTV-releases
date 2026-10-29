@@ -52,6 +52,7 @@ jobs:
         env:
           LICENCE: ${{ secrets.NIPTV_LICENCE_SECRET }}
           KEYSTORE: ${{ secrets.NIPTV_KEYSTORE_B64 }}
+          TMDB: ${{ secrets.NIPTV_TMDB_KEY }}
         run: |
           if [ -z "$LICENCE" ] || [ -z "$KEYSTORE" ]; then
             echo "::error::NIPTV_LICENCE_SECRET ou NIPTV_KEYSTORE_B64 absent : APK refuse (Premium offert ou mise a jour impossible)."
@@ -61,6 +62,7 @@ jobs:
           {
             echo "niptv.licenceSecret=$LICENCE"
             echo "niptv.keystore=$RUNNER_TEMP/niptv.keystore"
+            echo "niptv.tmdbKey=$TMDB"
           } > local.properties
       - name: APK
         run: |
@@ -108,9 +110,10 @@ jobs:
         shell: bash
         env:
           LICENCE: ${{ secrets.NIPTV_LICENCE_SECRET }}
+          TMDB: ${{ secrets.NIPTV_TMDB_KEY }}
         run: |
           if [ -z "$LICENCE" ]; then echo "::error::NIPTV_LICENCE_SECRET absent."; exit 1; fi
-          echo "niptv.licenceSecret=$LICENCE" > local.properties
+          printf 'niptv.licenceSecret=%s\nniptv.tmdbKey=%s\n' "$LICENCE" "$TMDB" > local.properties
       - name: libVLC
         shell: pwsh
         run: ./tools/fetch-vlc.ps1
@@ -176,9 +179,10 @@ jobs:
       - name: Secret Premium
         env:
           LICENCE: ${{ secrets.NIPTV_LICENCE_SECRET }}
+          TMDB: ${{ secrets.NIPTV_TMDB_KEY }}
         run: |
           if [ -z "$LICENCE" ]; then echo "::error::NIPTV_LICENCE_SECRET absent."; exit 1; fi
-          echo "niptv.licenceSecret=$LICENCE" > local.properties
+          printf 'niptv.licenceSecret=%s\nniptv.tmdbKey=%s\n' "$LICENCE" "$TMDB" > local.properties
       - name: .dmg
         run: |
           chmod +x gradlew
