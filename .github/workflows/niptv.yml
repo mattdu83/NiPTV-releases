@@ -65,10 +65,13 @@ jobs:
       - name: APK
         run: |
           chmod +x gradlew
-          ./gradlew :composeApp:assembleRelease --console=plain -q
+          # Since AGP 9 the APK is its own module (androidApp); older tags still build composeApp.
+          MODULE=composeApp
+          [ -d androidApp ] && MODULE=androidApp
+          ./gradlew ":$MODULE:assembleRelease" --console=plain -q
           VERSION=$(grep '^niptv.version=' gradle.properties | cut -d= -f2 | tr -d '[:space:]')
           mkdir -p dist
-          cp composeApp/build/outputs/apk/release/composeApp-release.apk "dist/NiPTV-$VERSION.apk"
+          cp "$MODULE/build/outputs/apk/release/$MODULE-release.apk" "dist/NiPTV-$VERSION.apk"
           ls -la dist
       - uses: actions/upload-artifact@v5
         with:
